@@ -1,10 +1,11 @@
 package extractor
 
 import (
+	"net/url"
 	"regexp"
 	"runtime/debug"
 	"strings"
-	"net/url"
+
 	"github.com/PuerkitoBio/goquery"
 	"github.com/xlvector/dlog"
 )
@@ -20,6 +21,7 @@ type HtmlSelector struct {
 	Suffix  string
 	Array   string
 	BaseUrl string
+	ReGroup string
 }
 
 func NewHtmlSelector(buf string) *HtmlSelector {
@@ -45,8 +47,10 @@ func NewHtmlSelector(buf string) *HtmlSelector {
 			ret.Suffix = kv[1]
 		} else if kv[0] == "array" {
 			ret.Array = kv[1]
-		} else if kv[0] == "base_url"{
+		} else if kv[0] == "base_url" {
 			ret.BaseUrl = kv[1]
+		} else if kv[0] == "regroup" {
+			ret.ReGroup = kv[1]
 		}
 	}
 	return &ret
@@ -63,6 +67,11 @@ func (p *HtmlSelector) PostProcess(s *goquery.Selection) string {
 		ret, err = s.Html()
 		if err != nil {
 			return ""
+		} else if p.Attr == "outhtml" {
+			ret, err = goquery.OuterHtml(s)
+			if err != nil {
+				return ""
+			}
 		}
 	} else {
 		ret, ok = s.Attr(p.Attr)
@@ -72,7 +81,11 @@ func (p *HtmlSelector) PostProcess(s *goquery.Selection) string {
 	}
 	ret = strings.TrimSpace(ret)
 	if len(p.Regex) > 0 {
-		ret = regexExtract(ret, p.Regex)
+		if len(p.ReGroup) > 0 {
+			ret = regexExtractGroup(ret, p.Regex, p.ReGroup)
+		} else {
+			ret = regexExtract(ret, p.Regex)
+		}
 	}
 
 	if len(p.Replace) > 0 {
@@ -84,23 +97,23 @@ func (p *HtmlSelector) PostProcess(s *goquery.Selection) string {
 	}
 
 	if len(p.Prefix) > 0 {
-		prefix,_ := url.QueryUnescape(p.Prefix)
+		prefix, _ := url.QueryUnescape(p.Prefix)
 		ret = prefix + ret
 	}
 
 	if len(p.Suffix) > 0 {
-		suffix,_ := url.QueryUnescape(p.Suffix)
+		suffix, _ := url.QueryUnescape(p.Suffix)
 		ret += suffix
 	}
 
 	if len(p.BaseUrl) > 0 {
-		if !strings.HasPrefix(ret, "http"){
-			base_url,_ := url.QueryUnescape(p.BaseUrl)
+		if !strings.HasPrefix(ret, "http") {
+			base_url, _ := url.QueryUnescape(p.BaseUrl)
 			ret = base_url + ret
 		}
 	}
-	
-	ret = strings.Replace(ret,"\u0000","",-1)
+
+	ret = strings.Replace(ret, "\u0000", "", -1)
 	return ret
 }
 
@@ -144,6 +157,20 @@ func (p *HtmlSelector) Query(doc *goquery.Selection) interface{} {
 		}
 	}
 	return nil
+}
+
+func regexExtractGroup(buf, regex, separator string) string {
+	reg := regexp.MustCompile(regex)
+	result := reg.FindAllStringSubmatch(buf, -1)
+	var ret string
+	if result != nil && len(result) > 0 {
+		for _, r := range result {
+			ret += strings.Join(r[1:], separator)
+			ret += ","
+		}
+		ret = strings.TrimSuffix(ret, ",")
+	}
+	return ret
 }
 
 func regexExtract(buf, regex string) string {
