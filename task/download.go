@@ -6,15 +6,6 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
-	"github.com/axgle/mahonia"
-	"github.com/xlvector/dlog"
-	"github.com/xlvector/higgs/casperjs"
-	"github.com/xlvector/higgs/context"
-	hproxy "github.com/xlvector/higgs/proxy"
-	"github.com/xlvector/persistent-cookiejar"
-	"golang.org/x/net/proxy"
-	"golang.org/x/net/publicsuffix"
-	"gopkg.in/redis.v2"
 	"io"
 	"io/ioutil"
 	"net"
@@ -24,6 +15,17 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/axgle/mahonia"
+	_ "github.com/mmczoo/go-socks4"
+	"github.com/xlvector/dlog"
+	"github.com/xlvector/higgs/casperjs"
+	"github.com/xlvector/higgs/context"
+	hproxy "github.com/xlvector/higgs/proxy"
+	"github.com/xlvector/persistent-cookiejar"
+	"golang.org/x/net/proxy"
+	"golang.org/x/net/publicsuffix"
+	"gopkg.in/redis.v2"
 )
 
 const (
@@ -184,6 +186,20 @@ func (self *Downloader) SetProxy(p *hproxy.Proxy) {
 			return
 		}
 		transport.Dial = dialSocks5Proxy.Dial
+	} else if p.Type == "socks4" {
+		surl := "socks4://" + p.IP
+		rsurl, err := url.Parse(surl)
+		if err != nil {
+			dlog.Warn("socks4 url parse: %v", err)
+			return
+		}
+		//forward := proxy.FromEnvironment()
+		dialersocks4, err := proxy.FromURL(rsurl, proxy.Direct)
+		if err != nil {
+			dlog.Warn("SetSocks4 Error:%s", err.Error())
+			return
+		}
+		transport.Dial = dialersocks4.Dial
 	} else if p.Type == "http" {
 		transport.Dial = func(netw, addr string) (net.Conn, error) {
 			timeout := time.Second * 30
