@@ -67,11 +67,11 @@ func (p *HtmlSelector) PostProcess(s *goquery.Selection) string {
 		ret, err = s.Html()
 		if err != nil {
 			return ""
-		} else if p.Attr == "outhtml" {
-			ret, err = goquery.OuterHtml(s)
-			if err != nil {
-				return ""
-			}
+		}
+	} else if p.Attr == "outhtml" {
+		ret, err = goquery.OuterHtml(s)
+		if err != nil {
+			return ""
 		}
 	} else {
 		ret, ok = s.Attr(p.Attr)
