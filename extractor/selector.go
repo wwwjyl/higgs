@@ -73,6 +73,7 @@ func (p *HtmlSelector) PostProcess(s *goquery.Selection) string {
 		if err != nil {
 			return ""
 		}
+		ret = strings.Replace(ret, "\n", "", -1)
 	} else {
 		ret, ok = s.Attr(p.Attr)
 		if !ok {
