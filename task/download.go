@@ -87,9 +87,12 @@ func NewDownloader(cjs *casperjs.CasperJS, p *hproxy.Proxy, outFolder string, co
 		}
 	}
 	ret.Client, ret.Jar = NewHttpClientWithPersistentCookieJar()
-	if p != nil {
-		ret.SetProxy(p)
-	}
+	/*
+		if p != nil {
+			ret.SetProxy(p)
+		}
+	*/
+	ret.SetProxy(p)
 	return ret
 }
 

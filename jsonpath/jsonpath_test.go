@@ -1,6 +1,7 @@
 package jsonpath
 
 import (
+	"io/ioutil"
 	"log"
 	"testing"
 )
@@ -69,4 +70,22 @@ func TestJsonPath(t *testing.T) {
 			return
 		}
 	}
+}
+
+func TestLT(t *testing.T) {
+	b, err := ioutil.ReadFile("55.json")
+	if err != nil {
+		t.Error(err)
+	}
+	myjson, err := NewJson(b)
+	if err != nil {
+		t.Error(err)
+	}
+
+	//t.Log(string(b))
+	fd, err := myjson.Query("pageMap.result")
+	if err != nil {
+		t.Error(err)
+	}
+	t.Log(fd)
 }

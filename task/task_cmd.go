@@ -3,6 +3,14 @@ package task
 import (
 	"crypto/rsa"
 	"fmt"
+	"io/ioutil"
+	_ "math/rand"
+	"net/url"
+	"os"
+	"runtime/debug"
+	"strings"
+	"time"
+
 	"github.com/xlvector/dama2"
 	"github.com/xlvector/dlog"
 	"github.com/xlvector/higgs/casperjs"
@@ -11,13 +19,6 @@ import (
 	"github.com/xlvector/higgs/flume"
 	hproxy "github.com/xlvector/higgs/proxy"
 	"github.com/xlvector/higgs/util"
-	"io/ioutil"
-	_"math/rand"
-	"net/url"
-	"os"
-	"runtime/debug"
-	"strings"
-	"time"
 )
 
 const (
@@ -33,7 +34,7 @@ type TaskCmd struct {
 	userId       string
 	passWord     string
 	path         string
-	url	     string
+	url          string
 	message      chan *cmd.Output
 	input        chan map[string]string
 	args         map[string]string
@@ -44,7 +45,7 @@ type TaskCmd struct {
 	dama2Client  *dama2.Dama2Client
 	flumeClient  *flume.Flume
 	finished     bool
-	proxy 	     *hproxy.Proxy
+	proxy        *hproxy.Proxy
 	proxyManager *hproxy.ProxyManager
 }
 
@@ -143,7 +144,7 @@ func (s *TaskCmdFactory) createCommandWithPrivateKey(params url.Values, task *Ta
 	ret.downloader = NewDownloader(ret.casperJS, p, outFolder, &DownloaderConfig{
 		RedisHost:    config.Instance.Redis.Host,
 		RedisTimeout: time.Duration(config.Instance.Redis.Timeout),
-	},   s.proxyManager)
+	}, s.proxyManager)
 	dlog.Println(ret.downloader.Client)
 
 	dlog.Warn("output folder: %s", ret.downloader.OutputFolder)
@@ -251,7 +252,6 @@ func (p *TaskCmd) OutputPublicKey() {
 	}
 }
 
-
 func (p *TaskCmd) Goto() (map[string]int, map[string]int) {
 	gotoMap := make(map[string]int)
 	retry := make(map[string]int)
@@ -301,7 +301,7 @@ func (p *TaskCmd) run() {
 					}
 					p.downloader.Context.Set(tk, val)
 				} else {
-					url,_ := p.downloader.Context.Get(tk)
+					url, _ := p.downloader.Context.Get(tk)
 					p.url = url.(string)
 				}
 			}
@@ -320,20 +320,18 @@ func (p *TaskCmd) run() {
 
 		if !p.task.DisableOutputFolder {
 			dlog.Println("begin save cookie")
-			/*
 			err = p.downloader.SaveCookie(p.downloader.OutputFolder + "/task_cookies.json")
 			if nil != err {
 				dlog.Warn("save cookie fail: %v", err)
 			}
-			*/
 		}
 
 		if p.downloader.LastPageStatus/100 == 4 || p.downloader.LastPageStatus/100 == 5 {
 			msg := &cmd.Output{
 				Status: cmd.WRONG_RESPONSE,
-				Id:	p.GetArgsValue("id"),
-				Data:	p.downloader.Context.Parse(step.Message["data"]),
-				Url:	p.url,
+				Id:     p.GetArgsValue("id"),
+				Data:   p.downloader.Context.Parse(step.Message["data"]),
+				Url:    p.url,
 			}
 
 			p.message <- msg
@@ -344,13 +342,13 @@ func (p *TaskCmd) run() {
 		}
 		if step.Message != nil && len(step.Message) > 0 {
 			data := p.downloader.Context.Parse(step.Message["data"])
-			if p.proxy == nil && p.proxyManager.CheckTmpl(p.tmpl) == true{
-				data = strings.TrimSuffix(data, "}")+",\"block_time\":\""+p.task.TmplBlockTime+"\"}"
+			if p.proxy == nil && p.proxyManager.CheckTmpl(p.tmpl) == true {
+				data = strings.TrimSuffix(data, "}") + ",\"block_time\":\"" + p.task.TmplBlockTime + "\"}"
 				msg := &cmd.Output{
 					Status: cmd.TMPL_BLOCK,
-					Id:	p.GetArgsValue("id"),
-					Data:	data,
-					Url: 	p.url,
+					Id:     p.GetArgsValue("id"),
+					Data:   data,
+					Url:    p.url,
 				}
 				dlog.Println(data)
 				p.message <- msg
@@ -358,22 +356,21 @@ func (p *TaskCmd) run() {
 				p.finished = true
 				return
 
-
 			} else {
 				msg := &cmd.Output{
 					Status: step.Message["status"],
 					Id:     p.GetArgsValue("id"),
 					Data:   data,
-					Url:	p.url,
+					Url:    p.url,
 				}
 
 				if needParam, ok := step.Message["need_param"]; ok {
 					msg.NeedParam = needParam
 				}
-				
+
 				if p.message != nil {
-				       p.message <- msg
-				 }
+					p.message <- msg
+				}
 
 				if msg.Status == cmd.FAIL || msg.Status == cmd.FINISH_FETCH_DATA {
 					p.finished = true
@@ -385,13 +382,14 @@ func (p *TaskCmd) run() {
 		if action := step.GetAction(p.downloader.Context); action != nil {
 			dlog.Info("fire action %v", action)
 			actionInfo := action.FullInfo(p.downloader.Context)
+			dlog.Info("actioninfo %v", actionInfo)
 			if action.Message != nil {
 				msg := &cmd.Output{
 					Status:    action.Message["status"],
 					Id:        p.GetArgsValue("id"),
 					NeedParam: action.Message["need_param"],
 					Data:      actionInfo,
-					Url:	   p.url,
+					Url:       p.url,
 				}
 
 				p.message <- msg
@@ -420,7 +418,7 @@ func (p *TaskCmd) run() {
 						Status: cmd.FAIL,
 						Id:     p.GetArgsValue("id"),
 						Data:   actionInfo,
-						Url:	p.url,
+						Url:    p.url,
 					}
 					p.message <- msg
 					dlog.Warn("%s Status:%s", p.GetId(), "retry fail "+step.Page)
@@ -466,7 +464,7 @@ func (p *TaskCmd) run() {
 		Status: cmd.FINISH_FETCH_DATA,
 		Id:     p.GetArgsValue("id"),
 		Data:   p.downloader.ExtractorResultString(),
-		Url:	p.url,
+		Url:    p.url,
 	}
 
 	p.message <- message

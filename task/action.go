@@ -1,8 +1,6 @@
 package task
 
-import (
-	"github.com/xlvector/higgs/context"
-)
+import "github.com/xlvector/higgs/context"
 
 type Action struct {
 	Condition     string            `json:"condition"`

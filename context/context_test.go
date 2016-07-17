@@ -1,12 +1,14 @@
 package context
 
 import (
-	"github.com/stretchr/testify/assert"
+	"fmt"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestTemplate(t *testing.T) {
-	c := NewContext(nil)
+	c := NewContext(nil, nil, nil)
 	t.Log(c.Parse("{{nowTimestamp}}"))
 	t.Log(c.Parse("{{daysAgo 1 \"2006-01-02\"}}"))
 	t.Log(c.Parse("{{nowMillTimestamp}}"))
@@ -68,4 +70,10 @@ func TestTemplate(t *testing.T) {
 	assert.Equal(t, "false", c.Parse("{{and (contains ._body \"result\") (contains ._body \"haha\") (contains ._body \"com\")}}"))
 
 	assert.Equal(t, "20140302", c.Parse("{{changeTimeFormat \"2014-03-02\" \"2006-01-02\" \"20060102\"}}"))
+}
+
+func TestJquerycallback(t *testing.T) {
+	r := jquerycallback("1.7.2")
+	fmt.Print(r)
+	t.Log(r)
 }

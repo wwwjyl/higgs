@@ -4,6 +4,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"io/ioutil"
+	"math/rand"
+	"net/http"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/SKatiyar/qr"
 	"github.com/xlvector/dama2"
 	"github.com/xlvector/dlog"
@@ -11,10 +19,8 @@ import (
 	"github.com/xlvector/higgs/config"
 	"github.com/xlvector/higgs/context"
 	"github.com/xlvector/higgs/extractor"
+	"github.com/xlvector/higgs/jsonpath"
 	"github.com/xlvector/higgs/util"
-	"io/ioutil"
-	"strconv"
-	"time"
 )
 
 type Require struct {
@@ -49,6 +55,25 @@ func (p *UploadImage) Filename() string {
 	return p.ContextKey + "." + p.Format
 }
 
+type HbaseInfo struct {
+	//filePath:="/home/kevin/higgs/data/10086/2016/06/20/1466405475831137786/detailnetworknfojsonp_201606.json"
+	//dataName :="data"
+	//phoneType := "10010"
+	//family := "m"
+	//formatStr:="01-02 15:04:05"
+	//timeKey:="startTime"
+	//SendToHbase(filePath,dataName,"15802277329",phoneType,family,formatStr,timeKey)
+
+	FileName  string `json:"file_name"`
+	DataName  string `json:"data_name"`
+	Phone     string `json:"phone"`
+	PhoneType string `json:"phone_type"`
+	Family    string `json:"family"`
+	FormatStr string `json:"format_str"`
+	TimeKey   string `json:"time_key"`
+	DataYear  string `json:"data_year"`
+}
+
 type Step struct {
 	Require         *Require               `json:"require"`
 	Tag             string                 `json:"tag"`
@@ -71,6 +96,7 @@ type Step struct {
 	ExtractorSource string                 `json:"extractor_source"`
 	Extractor       map[string]interface{} `json:"extractor"`
 	Sleep           int                    `json:"sleep"`
+	HbaseInfomation *HbaseInfo             `json:"hbase_info"`
 	Message         map[string]string
 }
 
@@ -203,6 +229,26 @@ func (s *Step) Do(d *Downloader, dm *dama2.Dama2Client, cas *casperjs.CasperJS) 
 		if err != nil {
 			dlog.Warn("write file failed: %v", err)
 		}
+
+		if s.HbaseInfomation != nil {
+			//strings.TrimSpace(string(body))
+			//dlog.Info("  -> %s",body)
+			dlog.Info("  -> %s", s.HbaseInfomation.DataName)
+			dlog.Info("  -> %s", d.Context.Parse(s.HbaseInfomation.Phone))
+			dlog.Info("  -> %s", s.HbaseInfomation.PhoneType)
+			dlog.Info("  -> %s", s.HbaseInfomation.Family)
+			dlog.Info("  -> %s", s.HbaseInfomation.FormatStr)
+			dlog.Info("  -> %s", s.HbaseInfomation.TimeKey)
+			bodyStr := string(body)
+			bodyStr = strings.TrimSpace(bodyStr)
+			bodyStr = bodyStr[strings.Index(bodyStr, "{") : strings.LastIndex(bodyStr, "}")+1]
+			//dlog.Info("  -> %s", bodyStr)
+			s.sendToHbase([]byte(bodyStr), s.HbaseInfomation.DataName, d.Context.Parse(s.HbaseInfomation.Phone),
+				s.HbaseInfomation.PhoneType, s.HbaseInfomation.Family, s.HbaseInfomation.FormatStr,
+				s.HbaseInfomation.TimeKey, d.Context.Parse(s.HbaseInfomation.DataYear))
+			//TODO
+
+		}
 	}
 
 	if s.UploadImage != nil {
@@ -236,4 +282,97 @@ func (s *Step) Do(d *Downloader, dm *dama2.Dama2Client, cas *casperjs.CasperJS) 
 		time.Sleep(time.Duration(s.Sleep) * time.Second)
 	}
 	return nil
+}
+
+func reverse(s string) string {
+	length := len(s)
+	b := make([]byte, length)
+	for i := 0; i < length; i++ {
+		b[length-1-i] = s[i]
+	}
+	return string(b)
+}
+func formatJson(jsonByte []byte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear string) map[string]interface{} {
+	myJson, err := jsonpath.NewJson(jsonByte)
+	finalPostData := make(map[string]interface{})
+	if err == nil {
+		// row list
+		rowDataList := make([]map[string]interface{}, 0)
+		fullData, err := myJson.Query(dataName)
+		if err != nil {
+			dlog.Warn("parse dataNmae fail! %v", err)
+		}
+		dlog.Info("------------>%s", string(dataName))
+		dlog.Info("------------>%v", fullData)
+		if err == nil && fullData != nil {
+			for i := 0; i < len(fullData.([]interface{})); i++ {
+				// row
+				rowData := make(map[string]interface{})
+				// rowkey
+				rowkey := reverse(phoneNumber) + "_" + family + "_" + dataYear
+				data, _ := myJson.Query(dataName + "[" + strconv.Itoa(i) + "]")
+				dataDetail := data.(map[string]interface{})
+				fmt.Println(dataDetail)
+				detailList := make([]map[string]interface{}, 0)
+				for key, val := range dataDetail {
+					//fmt.Println(key)
+					detailMap := make(map[string]interface{})
+					detailMap["column"] = base64.StdEncoding.EncodeToString([]byte(family + ":" + key))
+					if val != nil {
+						detailMap["$"] = base64.StdEncoding.EncodeToString([]byte(val.(string)))
+					} else {
+						detailMap["$"] = nil
+					}
+					detailList = append(detailList, detailMap)
+				}
+				typeMap := make(map[string]interface{})
+				typeMap["column"] = base64.StdEncoding.EncodeToString([]byte(family + ":type"))
+				typeMap["$"] = base64.StdEncoding.EncodeToString([]byte(phoneType))
+				detailList = append(detailList, typeMap)
+				t, err := time.Parse(formatStr, dataDetail[timeKey].(string))
+				if err != nil {
+					r := rand.New(rand.NewSource(time.Now().UnixNano()))
+					rowkey += "9"
+					for i := 0; i < 7; i++ {
+						rowkey += strconv.Itoa(r.Intn(10))
+					}
+					fmt.Println("time error")
+				} else {
+					if len(t.Format("20060102150405")) == 14 {
+
+					}
+					rowkey += t.Format("0102150405")
+				}
+				rowData["key"] = base64.StdEncoding.EncodeToString([]byte(rowkey))
+				rowData["Cell"] = detailList
+				rowDataList = append(rowDataList, rowData)
+			}
+		}
+
+		finalPostData["Row"] = rowDataList
+
+		dlog.Info("--->>>>%s", finalPostData)
+	} else {
+		//fmt.Println(err)
+		dlog.Warn("format fail! %v", err)
+	}
+	return finalPostData
+}
+func (s *Step) sendToHbase(jsonByte []byte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear string) {
+
+	finalPostData := formatJson(jsonByte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear)
+	str, _ := json.Marshal(finalPostData)
+	fmt.Printf("%s\n", str)
+	client := http.DefaultClient
+
+	resp, err := client.Post("http://g1-bdp-hdp-04:9527/test:user_tel_detail/false-row-key", "application/json", strings.NewReader(string(str)))
+	//defer resp.Close()
+	if err != nil {
+		fmt.Println(err)
+	} else {
+		fmt.Println(resp.Status)
+		b := make([]byte, 10240)
+		resp.Body.Read(b)
+		fmt.Printf("%s", b)
+	}
 }

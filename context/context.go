@@ -3,16 +3,17 @@ package context
 import (
 	"bytes"
 	"math/rand"
+	"regexp"
 	"strconv"
 	"strings"
 	"text/template"
 	"time"
-	"regexp"
-	hproxy "github.com/xlvector/higgs/proxy"
+
 	"github.com/xlvector/dlog"
 	"github.com/xlvector/higgs/casperjs"
 	"github.com/xlvector/higgs/extractor"
 	"github.com/xlvector/higgs/jsonpath"
+	hproxy "github.com/xlvector/higgs/proxy"
 	"github.com/xlvector/higgs/util"
 )
 
@@ -68,18 +69,18 @@ func AESEncodePassword(pwd, key, iv string) string {
 }
 
 type Context struct {
-	Data		map[string]interface{}
-	CJS 		*casperjs.CasperJS
-	Proxy		*hproxy.Proxy
-	ProxyManager	*hproxy.ProxyManager
+	Data         map[string]interface{}
+	CJS          *casperjs.CasperJS
+	Proxy        *hproxy.Proxy
+	ProxyManager *hproxy.ProxyManager
 }
 
 func NewContext(cjs *casperjs.CasperJS, p *hproxy.Proxy, pm *hproxy.ProxyManager) *Context {
 	return &Context{
-		Data: 		make(map[string]interface{}),
-		CJS:  		cjs,
-		Proxy:		p,
-		ProxyManager:	pm,
+		Data:         make(map[string]interface{}),
+		CJS:          cjs,
+		Proxy:        p,
+		ProxyManager: pm,
 	}
 }
 
@@ -106,49 +107,60 @@ func (p *Context) newEmptyTemplate() *template.Template {
 		"set":                p.setValue,
 		"add":                p.addValue,
 		"notEmpty":           p.notEmpty,
-		"empty":	      p.empty,
+		"empty":              p.empty,
 		"readCasper":         p.readCasper,
 		"writeCasper":        p.writeCasper,
 		"blockTmplProxy":     p.BlockTmplProxy,
-		"regexMatch":	      p.RegexMatch,
-		"getTimestamp":	      GetTimestamp,
+		"regexMatch":         p.RegexMatch,
+		"getTimestamp":       GetTimestamp,
+		"jquerycallback":     jquerycallback,
 	})
 }
 
+func jquerycallback(version string) string {
+	rand.Seed(time.Now().Unix())
+	f := rand.Float64()
+	sf := strconv.FormatFloat(f, 'f', 16, 64)
+	rs := version + sf
+	rep, _ := regexp.Compile("\\D")
+	ret := rep.ReplaceAllString(rs, "")
+	return ret
+}
+
 func RandRange(min, max int64) int64 {
-	if min >= max || min==0 || max==0{
+	if min >= max || min == 0 || max == 0 {
 		return max
 	}
 	r := rand.New(rand.NewSource(time.Now().UnixNano()))
-	return r.Int63n(max-min)+min
+	return r.Int63n(max-min) + min
 }
 
 func GetTimestamp(types, infos string) interface{} {
 	dlog.Println(types)
 	if types == "spare_time" {
-		tomorrowYear,tomorrowMonth,tomorrowDate := time.Now().Add(24*time.Hour).Date()
+		tomorrowYear, tomorrowMonth, tomorrowDate := time.Now().Add(24 * time.Hour).Date()
 		tomorrowTimestamp := time.Date(tomorrowYear, tomorrowMonth, tomorrowDate, 0, 0, 0, 0, time.Local).Unix()
 		nowTimestamp := time.Now().Unix()
-		timeDiff := tomorrowTimestamp-nowTimestamp
-		hours,error := strconv.ParseInt(infos,10,64)
+		timeDiff := tomorrowTimestamp - nowTimestamp
+		hours, error := strconv.ParseInt(infos, 10, 64)
 		if error != nil {
 			return timeDiff
 		}
-		return RandRange(timeDiff,timeDiff+hours*3600)
+		return RandRange(timeDiff, timeDiff+hours*3600)
 	} else if types == "ranges" {
-		nums := strings.Split(infos,"-")
+		nums := strings.Split(infos, "-")
 		if len(nums) == 2 {
 			minStr := nums[0]
 			maxStr := nums[1]
-			min,error := strconv.ParseInt(minStr,10,64)
+			min, error := strconv.ParseInt(minStr, 10, 64)
 			if error != nil {
 				return nil
 			}
-			max,error := strconv.ParseInt(maxStr,10,64)
+			max, error := strconv.ParseInt(maxStr, 10, 64)
 			if error != nil {
 				return nil
 			}
-			return RandRange(min,max)
+			return RandRange(min, max)
 		}
 	}
 	return nil
@@ -156,7 +168,7 @@ func GetTimestamp(types, infos string) interface{} {
 
 func (p *Context) RegexMatch(s string, regex string) bool {
 	re := regexp.MustCompile(regex)
-	result := re.FindAllString(s,-1)
+	result := re.FindAllString(s, -1)
 	if len(result) == 0 {
 		return false
 	} else {
@@ -278,6 +290,9 @@ func (p *Context) Parse(text string) string {
 }
 
 func (p *Context) Set(k string, v interface{}) {
+	if !strings.HasPrefix(k, "_") && !strings.HasPrefix(k, "cookie") {
+		dlog.Info("context set: %v=%v", k, v)
+	}
 	p.Data[k] = v
 }
 

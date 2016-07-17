@@ -60,7 +60,9 @@ function getData(param) {
                     $("#result").append(button);
                 }
             } else if (data.status == "fail") {
-                if (tmpl == "taobao_shop" || tmpl == "tmall_shop") {
+                if (tmpl == "taobao_shop" || tmpl == "tmall_shop"|| 
+                                tmpl == "10010" || tmpl == "pbccrc" ||
+                                tmpl == "10086") {
                     alert("抓取失败:"+data.data);
                 }
             } else if (data.status == "login_success") {
