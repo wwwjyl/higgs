@@ -1,6 +1,7 @@
 package task
 
 import (
+	"bytes"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -72,6 +73,8 @@ type HbaseInfo struct {
 	FormatStr string `json:"format_str"`
 	TimeKey   string `json:"time_key"`
 	DataYear  string `json:"data_year"`
+	SaveType  string `json:"save_type"`
+	Website   string `json:"website"`
 }
 
 type Step struct {
@@ -239,15 +242,7 @@ func (s *Step) Do(d *Downloader, dm *dama2.Dama2Client, cas *casperjs.CasperJS) 
 			dlog.Info("  -> %s", s.HbaseInfomation.Family)
 			dlog.Info("  -> %s", s.HbaseInfomation.FormatStr)
 			dlog.Info("  -> %s", s.HbaseInfomation.TimeKey)
-			bodyStr := string(body)
-			bodyStr = strings.TrimSpace(bodyStr)
-			bodyStr = bodyStr[strings.Index(bodyStr, "{") : strings.LastIndex(bodyStr, "}")+1]
-			//dlog.Info("  -> %s", bodyStr)
-			s.sendToHbase([]byte(bodyStr), s.HbaseInfomation.DataName, d.Context.Parse(s.HbaseInfomation.Phone),
-				s.HbaseInfomation.PhoneType, s.HbaseInfomation.Family, s.HbaseInfomation.FormatStr,
-				s.HbaseInfomation.TimeKey, d.Context.Parse(s.HbaseInfomation.DataYear))
-			//TODO
-
+			s.saveToHbase(body, d)
 		}
 	}
 
@@ -359,7 +354,6 @@ func formatJson(jsonByte []byte, dataName, phoneNumber, phoneType, family, forma
 	return finalPostData
 }
 func (s *Step) sendToHbase(jsonByte []byte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear string) {
-
 	finalPostData := formatJson(jsonByte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear)
 	str, _ := json.Marshal(finalPostData)
 	fmt.Printf("%s\n", str)
@@ -374,5 +368,77 @@ func (s *Step) sendToHbase(jsonByte []byte, dataName, phoneNumber, phoneType, fa
 		b := make([]byte, 10240)
 		resp.Body.Read(b)
 		fmt.Printf("%s", b)
+	}
+}
+
+func (s *Step) saveTextToHbase(d *Downloader) {
+	hi := s.HbaseInfomation
+	data := d.Context.Parse(hi.DataName)
+	if len(data) == 0 {
+		dlog.Info("data empty: %v", hi)
+		return
+	}
+
+	site := d.Context.Parse(hi.Website)
+	texttype := d.Context.Parse(hi.PhoneType)
+	username := d.Context.Parse(hi.Phone)
+	tdate := time.Now().Format("20060102")
+
+	row_key := username + "_" + site + "_" + texttype + "_" + tdate
+	dlog.Info("row_key====>%v", row_key)
+
+	postdata := make(map[string]interface{})
+	rowdata := make(map[string]interface{})
+	celldata := make([]map[string]interface{}, 0)
+	cell := make(map[string]interface{})
+	rows := make([]map[string]interface{}, 0)
+
+	cell["$"] = base64.StdEncoding.EncodeToString([]byte(data))
+	cell["column"] = base64.StdEncoding.EncodeToString([]byte(hi.Family + ":" + "file"))
+	celldata = append(celldata, cell)
+	rowdata["Cell"] = celldata
+	rowdata["key"] = base64.StdEncoding.EncodeToString([]byte(row_key))
+
+	rows = append(rows, rowdata)
+	postdata["Row"] = rows
+
+	go func() {
+		str, err := json.Marshal(postdata)
+		if err != nil {
+			dlog.Warn("Marshal file fail! %v", row_key)
+			return
+		}
+		dlog.Info("%v", string(str))
+		client := http.DefaultClient
+		resp, err := client.Post("http://g1-bdp-hdp-04:9527/test:html/false-row-key", "application/json", bytes.NewReader(str))
+		if resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
+
+		if err != nil {
+			dlog.Warn("file to hbase fail! %v", row_key)
+		} else {
+			b := make([]byte, 10240)
+			resp.Body.Read(b)
+			dlog.Info("filetohbase: %v %v %v", resp.Status, string(b), row_key)
+		}
+	}()
+}
+
+func (s *Step) saveToHbase(body []byte, d *Downloader) {
+	if s.HbaseInfomation == nil {
+		return
+	}
+
+	if s.HbaseInfomation.SaveType == "file" {
+		s.saveTextToHbase(d)
+	} else {
+		bodyStr := string(body)
+		bodyStr = strings.TrimSpace(bodyStr)
+		bodyStr = bodyStr[strings.Index(bodyStr, "{") : strings.LastIndex(bodyStr, "}")+1]
+
+		s.sendToHbase([]byte(bodyStr), s.HbaseInfomation.DataName, d.Context.Parse(s.HbaseInfomation.Phone),
+			s.HbaseInfomation.PhoneType, s.HbaseInfomation.Family, s.HbaseInfomation.FormatStr,
+			s.HbaseInfomation.TimeKey, d.Context.Parse(s.HbaseInfomation.DataYear))
 	}
 }
