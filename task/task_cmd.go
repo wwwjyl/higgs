@@ -380,9 +380,8 @@ func (p *TaskCmd) run() {
 		}
 
 		if action := step.GetAction(p.downloader.Context); action != nil {
-			dlog.Info("fire action %v", action)
 			actionInfo := action.FullInfo(p.downloader.Context)
-			dlog.Info("actioninfo %v", actionInfo)
+			dlog.Info("actioninfo %v %v", action, actionInfo)
 			if action.Message != nil {
 				msg := &cmd.Output{
 					Status:    action.Message["status"],
