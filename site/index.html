@@ -22,7 +22,8 @@
                 
                 <div class="form-group">
                     <label for="password">网站</label>
-                    <select id="tmpl" class="form-control">
+                    <select id="tmpl" class="form-control" onchange="getCaptcha()">
+                        <option value="">请选择</option>
                         <option value="10086">中国移动</option>
                         <option value="10010">中国联通</option>
                         <option value="pbccrc">人行征信</option>
@@ -35,11 +36,18 @@
                     </select>
                 </div>
                 <div class="form-group">
-                  <button type="submit" onclick="crawl();" class="btn btn-default">提交</button> 
+                        <span id="captcha"></span>
+                </div>
+                <div class="form-group">
+                  <button type="submit"  id="id_submit" onclick="crawl();" class="btn btn-default" style="display:none" >提交</button> 
                 </div>
 
                 <div class="form-group">
-                  <span id="result"></span> 
+                        <span id="result">
+                                <p style="color:red">
+                                <b>请先选择网站</b>
+                                </p>
+                        </span> 
                 </div>
             </div>
         </div>

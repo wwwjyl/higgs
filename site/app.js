@@ -21,23 +21,32 @@ function getData(param) {
             id = data.id;
             printTime();
             if (data.status == "output_verifycode"){
-                $('#result').empty();
-                $('#result').html("");
-                $("#result").append("<img id=\"randcode_img\" src='" + data.data +"'/>");
+                $('#captcha').empty();
+                $('#captcha').html("");
+                //没有验证码
+                if (data.data.length == 0) {
+                        $("#id_submit").style.display = "block";
+                        return;
+                }
+                   
+                $("#captcha").append("<img id=\"randcode_img\" src='" + data.data +"'/>");
                 var input = "<div class=\"form-group\">" +
                     "<label for=\"password\">验证码</label>" +
                     "<input type=\"txt\" class=\"form-control\" id=\"randcode_input\" placeholder=\"验证码\"></div>";
-                $("#result").append(input);
+                $("#captcha").append(input);
+                /*
                 var button = "<div class=\"form-group\">"+
                     "<button type=\"submit\" onclick=\"sendRandcode();\" class=\"btn btn-default\" id=\"randcode_send\">发送验证码</button></div>";
                 $("#result").append(button);
+                 */
+                 $("#id_submit").css('display','block');
             }
             else if(data.status == "need_param") {
                 if (data.need_param == "password2"){
                     $("#result").empty();
                     $("#result").html("");
                     if (data.data.length != 0) {
-                        $("#result").append("手机号码："+data.data+"<br/>");
+                        $("#result").append("用户名："+data.data+"<br/>");
                     }
                     addPassword2Div("#result");
                 }
@@ -59,15 +68,33 @@ function getData(param) {
                         "发送手机号码</button></div>";
                     $("#result").append(button);
                 }
-            } else if (data.status == "fail") {
-                //if (tmpl == "taobao_shop" || tmpl == "tmall_shop"|| 
-                  if(tmpl == "10010" || tmpl == "pbccrc" ||
-                     tmpl == "10086" || tmpl == "bjurbmi" ||
-                     tmpl == "indinfo") {
-                    alert("抓取失败:"+data.data);
+
+                /*
+                if (data.need_param == "username") {
+                    getData({id: data.id});
                 }
+                */
+            } else if (data.status == "fail") {
+                id = ""
+                //if (tmpl == "taobao_shop" || tmpl == "tmall_shop"|| 
+                if(tmpl == "10010" || tmpl == "pbccrc" ||
+                    tmpl == "10086" || tmpl == "bjurbmi" ||
+                    tmpl == "indinfo") {
+                alert("抓取失败:"+data.data);
+                $('#captcha').empty();
+                $('#captcha').html("");
+                $('#result').empty();
+                $('#result').html("");
+                $('#username').focus();
+                getData({tmpl: tmpl});
+            }
             } else if (data.status == "login_success") {
                 $("#result").append("登录成功<br/>");
+                getData({id: data.id});
+            } else if (data.status == "login_fail") {
+                $('#result').empty();
+                $('#result').html("");
+                $("#result").append("提示：" + data.data + "<br/>");
                 getData({id: data.id});
             } else if (data.status == "begin_fetch_data") {
                 $("#result").append("开始获取数据<br/>");
@@ -76,9 +103,9 @@ function getData(param) {
                 $("#result").append("成功获取数据<br/>");
             } else if(data.status == "output_publickey") {
                 publicKey = pki.publicKeyFromPem(data.data);
-                var encrypted = publicKey.encrypt(password, 'RSA-OAEP', {md: forge.md.sha256.create()});
-                encrypted = forge.util.binary.hex.encode(encrypted);
-                getData({id: data.id, username: username, password: encrypted})
+                id = data.id
+                //getData({id: data.id, username: username, password: encrypted})
+                getData({id: data.id})
                 $("#result").append("获取公钥成功<br/>");
             }
         },
@@ -95,14 +122,33 @@ function crawl() {
     password = $("#password").val();
     userid = $("#userid").val();
     start = (new Date()).getTime();
-    tmpl = $("#tmpl").val();
+    //tmpl = $("#tmpl").val();
+    var randcode = "";
 
-    if (username.length == 0 || password.length == 0 || tmpl.length == 0) {
+    if (id.length == 0) {
+        alert("请刷新您的网页，重新登录！");
+        return;
+    }
+    //是否需要验证码
+    if ($("#randcode_input")) {
+        randcode = $("#randcode_input").val();
+        if (randcode.length ==0) {
+            alert("验证码输入有误，请检查！");
+            return;
+        }
+    }
+
+    //if (username.length == 0 || password.length == 0 || tmpl.length == 0) {
+    if (username.length == 0 || password.length == 0) {
         alert("您的输入有误，请检查！");
         return;
     }
     $("#result").html("开始<br/>");
-    getData({tmpl: tmpl,userid: userid});
+
+    var encrypted = publicKey.encrypt(password, 'RSA-OAEP', {md: forge.md.sha256.create()});
+    encrypted = forge.util.binary.hex.encode(encrypted);
+    getData({id: id, username: username, password: encrypted, randcode:randcode})
+    //getData({tmpl: tmpl,userid: userid});
 }
 
 function addPassword2Div(container) {
@@ -144,4 +190,18 @@ function sendRandcode() {
     getData({id: id, randcode: randcode});
 }
 
+
+/*
+ * 
+ * 2016-07-21
+ */
+function getCaptcha() {
+    $('#captcha').empty();
+    $('#captcha').html("");
+    tmpl = $("#tmpl").val();
+    $("#tmpl option[value='']").remove();
+    $('#result').empty();
+    $('#result').html("");
+    getData({tmpl: tmpl});
+}
 

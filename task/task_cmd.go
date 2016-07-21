@@ -184,20 +184,27 @@ func (p *TaskCmd) getUserName() string {
 }
 
 func (p *TaskCmd) readInputArgs(key string) string {
-	args := <-p.input
-	for k, v := range args {
-		if k == "username" {
-			p.userName = v
+	for {
+		args, ok := <-p.input
+		if !ok {
+			return ""
 		}
+		dlog.Warn("readkey====>>%v %s", args, key)
 
-		if k == "password" {
-			p.passWord = v
+		for k, v := range args {
+			if k == "username" {
+				p.userName = v
+			}
+
+			if k == "password" {
+				p.passWord = v
+			}
+
+			p.args[k] = v
 		}
-
-		p.args[k] = v
-	}
-	if val, ok := p.args[key]; ok {
-		return val
+		if val, ok := p.args[key]; ok {
+			return val
+		}
 	}
 
 	dlog.Warn("%s need parameter %s", p.GetId(), key)
