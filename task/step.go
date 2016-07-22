@@ -355,20 +355,35 @@ func formatJson(jsonByte []byte, dataName, phoneNumber, phoneType, family, forma
 }
 func (s *Step) sendToHbase(jsonByte []byte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear string) {
 	finalPostData := formatJson(jsonByte, dataName, phoneNumber, phoneType, family, formatStr, timeKey, dataYear)
-	str, _ := json.Marshal(finalPostData)
-	fmt.Printf("%s\n", str)
-	client := http.DefaultClient
+	str, err := json.Marshal(finalPostData)
 
-	resp, err := client.Post("http://g1-bdp-hdp-04:9527/test:user_tel_detail/false-row-key", "application/json", strings.NewReader(string(str)))
-	//defer resp.Close()
 	if err != nil {
-		fmt.Println(err)
-	} else {
-		fmt.Println(resp.Status)
-		b := make([]byte, 10240)
-		resp.Body.Read(b)
-		fmt.Printf("%s", b)
+		dlog.Error("===>sendbase fail! %v %v %v", phoneNumber, family, err)
+		return
 	}
+
+	go func() {
+		client := http.DefaultClient
+		resp, err := client.Post("http://g1-bdp-hdp-04:9527/test:user_tel_detail/false-row-key", "application/json", strings.NewReader(string(str)))
+		if resp != nil && resp.Body != nil {
+			defer resp.Body.Close()
+		}
+
+		if err != nil {
+			dlog.Error("===>habse send fail! %v %v %v", phoneNumber, family, err)
+		} else {
+			dlog.Info("===>habse send status: %v", resp.Status)
+			if resp.StatusCode != 200 {
+				b := make([]byte, 4096)
+				n, err := resp.Body.Read(b)
+				if err != nil {
+					dlog.Warn("==>failinfo: %v", err)
+				} else if n > 0 {
+					dlog.Warn("==>failinfo: %v", bytes.Replace(b[:n], []byte("\n"), []byte(""), -1))
+				}
+			}
+		}
+	}()
 }
 
 func (s *Step) saveTextToHbase(d *Downloader) {
