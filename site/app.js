@@ -154,13 +154,28 @@ function crawl() {
 }
 
 function addPassword2Div(container) {
-    $(container).append('<div id="password2"></div>')
-    $("#password2").append('<div class="form-group">'
-            + '<input type="password" class="form-control" id="password2_input" placeholder="独立密码" />'
-            + '</div>');
-    $("#password2").append('<div class="form-group">'
-            + '<button type="submit" onclick="sendPassword2();" class="btn btn-default">提交独立密码</button>'
-            + '</div>');
+        var tip1 = "";
+        var tip2 = "";
+
+        if (tmpl == "10086"){
+                tip1 = '短信验证码';
+                tip2 = '提交短信验证码';
+        }else if(tmpl == "pbccrc") {
+                tip1 = '身份验证码';
+                tip2 = '提交身份验证码';
+        }else{
+                tip1 = '独立密码';
+                tip2 = '提交独立密码';
+        }
+        $(container).append('<div id="password2"></div>')
+                $("#password2").append('<div class="form-group">'
+                                + '<input type="password" class="form-control" id="password2_input" placeholder="' + tip1 + '" />'
+                                + '</div>');
+        $("#password2").append('<div class="form-group">'
+                        + '<button type="submit" onclick="sendPassword2();" class="btn btn-default">'+ tip2 +'</button>'
+                        + '</div>');
+
+
 }
 
 function sendPassword2() {
@@ -197,6 +212,19 @@ function sendRandcode() {
  * 
  * 2016-07-21
  */
+
+function tippassword(tmpl){
+        if (tmpl == "10010"){
+            $("#labal_password").html("密码" + "<font color=\"red\">\t(温馨提示：忘记密码，发送 MMCZ#6位新密码 到10010！)</font>");
+        }else if (tmpl == "10086"){
+            $("#labal_password").html("密码" + "<font color=\"red\">\t(温馨提示：忘记密码，请前往移动官网获取密码！)</font>");
+        }else if (tmpl == "pbccrc"){
+            $("#labal_password").html("密码" + "<font color=\"red\">\t(温馨提示：忘记密码，请前往人行个人信用信息服务平台获取密码！)</font>");
+        }else{
+            $("#labal_password").html("密码");
+        }
+}
+
 function getCaptcha() {
     $('#captcha').empty();
     $('#captcha').html("");
@@ -204,6 +232,7 @@ function getCaptcha() {
     $("#tmpl option[value='']").remove();
     $('#result').empty();
     $('#result').html("");
+    tippassword(tmpl);
     getData({tmpl: tmpl});
 }
 
