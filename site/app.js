@@ -30,6 +30,8 @@ function getData(param) {
                 }
                    
                 $("#captcha").append("<img id=\"randcode_img\" src='" + data.data +"'/>");
+                var changecaptcha = "<label for=\"randcode_img\" onclick=\"change_captcha()\"><span>\t\t刷新验证码</span></label>";
+                $("#captcha").append(changecaptcha);
                 var input = "<div class=\"form-group\">" +
                     "<label for=\"password\">验证码</label>" +
                     "<input type=\"txt\" class=\"form-control\" id=\"randcode_input\" placeholder=\"验证码\"></div>";
@@ -205,3 +207,9 @@ function getCaptcha() {
     getData({tmpl: tmpl});
 }
 
+function change_captcha() {
+    $('#result').empty();
+    $('#result').html("");
+    tmpl = $("#tmpl").val();
+    getData({tmpl: tmpl});
+}
