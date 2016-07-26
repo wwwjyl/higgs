@@ -184,28 +184,29 @@ func (p *TaskCmd) getUserName() string {
 }
 
 func (p *TaskCmd) readInputArgs(key string) string {
-	for {
-		args, ok := <-p.input
-		if !ok {
-			return ""
-		}
-		dlog.Warn("readkey====>>%v %s", args, key)
-
-		for k, v := range args {
-			if k == "username" {
-				p.userName = v
-			}
-
-			if k == "password" {
-				p.passWord = v
-			}
-
-			p.args[k] = v
-		}
-		if val, ok := p.args[key]; ok {
-			return val
-		}
+	args, ok := <-p.input
+	if !ok {
+		return ""
 	}
+	dlog.Warn("readkey====>>%v %s", args, key)
+
+	for k, v := range args {
+		if k == "username" {
+			p.userName = v
+		} else if k == "password" {
+			p.passWord = v
+		} else if k == "feedback" {
+			if v == "_kill_" {
+				return v
+			}
+		}
+
+		p.args[k] = v
+	}
+	if val, ok := p.args[key]; ok {
+		return val
+	}
+	return ""
 
 	dlog.Warn("%s need parameter %s", p.GetId(), key)
 	message := &cmd.Output{
@@ -225,6 +226,11 @@ func (p *TaskCmd) GetArgsValue(key string) string {
 	}
 	for {
 		val := p.readInputArgs(key)
+		if val == "_kill_" {
+			p.finished = true
+			return ""
+		}
+
 		if len(val) != 0 {
 			dlog.Info("%s successfully get args value:%s", p.GetId(), val)
 			return val
@@ -242,9 +248,16 @@ func (p *TaskCmd) Close() bool {
 			dlog.Warn("%s Close Error:%v", p.GetId(), err)
 		}
 	}()
-	close(p.message)
-	p.message = nil
-	close(p.input)
+
+	if p.message != nil {
+		close(p.message)
+		p.message = nil
+	}
+
+	if p.input != nil {
+		close(p.input)
+		p.input = nil
+	}
 	return true
 }
 
@@ -302,6 +315,12 @@ func (p *TaskCmd) run() {
 				_, ok := p.downloader.Context.Get(tk)
 				if !ok {
 					val := p.GetArgsValue(tk)
+					//用于响应用户端返回的完成信号
+					if p.finished {
+						dlog.Warn("answer feedback! %v", p.GetId())
+						p.Close()
+						return
+					}
 					delete(p.args, tk)
 					if tk == "password" {
 						val = util.DecodePassword(val, p.privateKey)

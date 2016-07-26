@@ -233,6 +233,9 @@ function getCaptcha() {
     $('#result').empty();
     $('#result').html("");
     tippassword(tmpl);
+    if(id!="") {
+        getData({id:id, feedback: "_kill_"});
+    }
     getData({tmpl: tmpl});
 }
 
@@ -240,5 +243,8 @@ function change_captcha() {
     $('#result').empty();
     $('#result').html("");
     tmpl = $("#tmpl").val();
+    if(id!="") {
+        getData({id:id, feedback: "_kill_"});
+    }
     getData({tmpl: tmpl});
 }
